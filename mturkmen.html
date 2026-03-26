@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>mturkmen.os // TA4KPM</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --window-bg: #1e1e1e;
+            --bar-bg: #2d2d2d;
+            --text-color: #00ff41;
+            --prompt-color: #f1fa8c;
+            --error-color: #ff5555;
+            --font-family: 'Courier New', Courier, monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(circle at center, #1a2a1a 0%, #000 100%),
+                repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,65,0.03) 2px, rgba(0,255,65,0.03) 4px);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: var(--font-family);
+            overflow: hidden;
+        }
+
+        /* Scanline efekti */
+        body::after {
+            content: " ";
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+
+        .window {
+            width: 85vw;
+            max-width: 900px;
+            height: 75vh;
+            background-color: var(--window-bg);
+            border-radius: 10px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.8), 0 0 0 1px #333;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            position: absolute;
+            z-index: 10;
+        }
+
+        .title-bar {
+            background-color: var(--bar-bg);
+            height: 30px;
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
+            cursor: move;
+            user-select: none;
+        }
+
+        .buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+        .close { background-color: #ff5f56; }
+        .minimize { background-color: #ffbd2e; }
+        .maximize { background-color: #27c93f; }
+
+        .title {
+            color: #999;
+            font-size: 13px;
+            flex-grow: 1;
+            text-align: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin-right: 56px; /* Buton alanını dengelemek için */
+        }
+
+        .terminal {
+            flex-grow: 1;
+            padding: 15px;
+            overflow-y: auto;
+            color: var(--text-color);
+            font-size: 15px;
+            line-height: 1.5;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .terminal::-webkit-scrollbar {
+            width: 10px;
+        }
+        .terminal::-webkit-scrollbar-track {
+            background: #1e1e1e;
+        }
+        .terminal::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 5px;
+        }
+
+        .output-line {
+            margin-bottom: 5px;
+            word-wrap: break-word;
+            white-space: pre-wrap;
+        }
+
+        .input-line {
+            display: flex;
+            margin-top: 5px;
+        }
+
+        .prompt {
+            color: var(--prompt-color);
+            margin-right: 10px;
+            white-space: nowrap;
+        }
+
+        .cmd-input {
+            background: transparent;
+            border: none;
+            color: var(--text-color);
+            font-family: var(--font-family);
+            font-size: 15px;
+            flex-grow: 1;
+            outline: none;
+            caret-color: var(--text-color);
+        }
+
+        /* Responsive Tasarım */
+        @media (max-width: 768px) {
+            .window {
+                width: 100vw;
+                height: 100vh;
+                border-radius: 0;
+                box-shadow: none;
+            }
+            .title-bar {
+                cursor: default;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="window" id="window">
+        <div class="title-bar" id="title-bar">
+            <div class="buttons">
+                <div class="btn close"></div>
+                <div class="btn minimize"></div>
+                <div class="btn maximize"></div>
+            </div>
+            <div class="title">mturkmen@MacBook-Pro-M4 : ~ — -zsh</div>
+        </div>
+        <div class="terminal" id="terminal" onclick="document.getElementById('cmd').focus()">
+            <div id="output">
+                <div class="output-line">Last login: Thu Mar 26 15:38:19 on ttys001</div>
+                <div class="output-line">Welcome to mturkmen.os v1.0.</div>
+                <div class="output-line">Sistemi başlatmak için komut girin. Nereden başlayacağınızı bilmiyorsanız 'help' yazın.</div>
+            </div>
+            <div class="input-line">
+                <span class="prompt">mturkmen@MacBook-Pro-M4 ~ %</span>
+                <input type="text" id="cmd" class="cmd-input" autocomplete="off" spellcheck="false" autofocus>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const cmdInput = document.getElementById('cmd');
+        const outputDiv = document.getElementById('output');
+        const terminalDiv = document.getElementById('terminal');
+
+        // Komut Veritabanı (Torvalds / Direkt Tarz)
+        const commands = {
+            'help': `Kullanılabilir komutlar:
+  whoami    - Kim olduğumu öğren.
+  skills    - Ne kullandığımı gör.
+  radio     - TA4KPM hakkında.
+  projects  - Üzerinde çalıştığım şeyler.
+  contact   - İletişim protokolleri.
+  clear     - Ekranı temizle.`,
+            
+            'whoami': `M. Türkmen.
+Yazılım geliştiriciyim. Kod yazar, problemleri çözerim. 
+Donanım ve yazılım arasındaki o ince çizgide gezinmeyi severim. 
+Denizli'deyim. Amatör telsizcilik yapar, lehim dumanı yutar, temiz sistem mimarileri kurarım. 
+Boş laf yok, çalışan sistemler var.`,
+
+'skills': `> cat /usr/local/bin/skills.txt
+
+[ Backend & Mimari ]
+- PHP (10 Yıllık Mesai): Symfony, Laravel. Framework'lerin kölesi değilim, çekirdeği bilirim.
+- Yazılım Felsefesi: OOP, SOLID, Design Patterns. Spagetti koda ve günü kurtaran yamalara tahammülüm yok. Ölçeklenebilir ve temiz kod yazarım.
+
+[ Veritabanı & Önbellek ]
+- İlişkisel Veritabanları: MySQL, PostgreSQL. Sadece tablo kurmam; index optimizasyonu yapar, karmaşık sorguları hızlandırır, darboğazları çözerim.
+- Caching: Redis/Memcached. Sunucuyu yormam, veriyi hızlı getiririm.
+
+[ Sistem, DevOps & Ağ ]
+- OS & Sunucu: Linux terminali evimdir. Nginx, PHP-FPM, LEMP stack konfigürasyonları. 
+- Sürüm & Dağıtım: Git, CI/CD süreçleri, temel düzey Docker. Kodun sunucuya sağ salim ulaşması ve güvenli çalışması benim işim.
+
+[ Donanım, IoT & RF ]
+- Fiziksel Katman: Devre tasarımı, SBC (Raspberry Pi vb.) ve mikrodenetleyici (ESP, Arduino) programlama. Sensörler ve aktüatörlerle dijitali gerçeğe bağlarım.
+- Radyo Frekans (TA4KPM): Amatör telsizcilik. Anten teorisi, sinyal yayılımı, RF iletişim protokolleri. Havayı ve dalgaları dinlerim.`,
+
+            'radio': `Çağrı İşareti: TA4KPM
+Amatör telsizci. Havayı dinler, sinyalleri yakalarım. 
+Dijital kodun kesinliği ile radyo dalgalarının analog kaosunu birleştiriyorum.
+Frekanslarda karşılaşırsak 73.`,
+
+			'projects': `> ls -la /var/www/projects
+
+drwxr-xr-x  [Symfony] Enterprise API & Backend Mimarileri
+            Yüksek trafikli, karmaşık iş mantığına sahip sistemler. 
+            Süslü kod değil, performans ve güvenlik odaklı RESTful yapılar.
+
+drwxr-xr-x  [Laravel] Ölçeklenebilir Kurumsal Web Uygulamaları
+            İş süreçlerini otomatize eden, optimize edilmiş çözümler. 
+            Veritabanı darboğazlarını çözer, temiz ve bakımı kolay kod yazarım.
+
+drwxr-xr-x  Sunucu Konfigürasyonu & Optimizasyon
+            Kodun iyi olması yetmez, üzerinde koştuğu ortamın da 
+            ince ayarının yapılması gerekir. Sunucu ayağa kaldırma ve optimizasyon.
+
+drwxr-xr-x  Sistemler Arası API Entegrasyonları & Veri Akışı
+            Ayrık platformları birbiriyle konuştururum. REST, SOAP, Webhook'lar.
+            Spagetti bağlantılar değil; hata tolere edebilen, güvenli ve 
+            kesintisiz veri köprüleri kurarım. 
+
+drwxr-xr-x  [IoT & Donanım] - Fiziksel Katman (Side Quests)
+            Raspberry Pi, Arduino, ESP mikrodenetleyiciler ve SBC'ler.
+            Sensör ağları, röle otomasyonları, I2C/SPI haberleşme protokolleri.
+            Yazılımı ekrandan çıkarıp, fiziksel dünyaya ve donanıma dokundurmak.`,
+
+            'contact': `Ping atmak istersen:
+Domain: mturkmen.com
+E-posta: kpmt01@gmail.com
+Bionluk profilim üzerinden de iş için ulaşabilirsin.`
+        };
+
+        // Komut İşleme
+        cmdInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                const rawCmd = this.value;
+                const cmd = rawCmd.trim().toLowerCase();
+                
+                if (cmd !== '') {
+                    // Kullanıcının yazdığı komutu ekrana bas
+                    appendOutput(`<span class="prompt">mturkmen@MacBook-Pro-M4 ~ %</span> ${rawCmd}`);
+                    
+                    // Komutu çalıştır
+                    if (cmd === 'clear') {
+                        outputDiv.innerHTML = '';
+                    } else if (commands[cmd]) {
+                        appendOutput(commands[cmd]);
+                    } else if (cmd === 'sudo') {
+                        appendOutput('Yetkin yok. Bu sistemde root benim.', 'var(--error-color)');
+                    } else {
+                        appendOutput(`zsh: command not found: ${cmd}`);
+                    }
+                }
+                
+                // Input'u temizle ve en alta kaydır
+                this.value = '';
+                terminalDiv.scrollTop = terminalDiv.scrollHeight;
+            }
+        });
+
+        function appendOutput(text, color = null) {
+            const line = document.createElement('div');
+            line.className = 'output-line';
+            if (color) line.style.color = color;
+            line.innerHTML = text;
+            outputDiv.appendChild(line);
+        }
+
+        // --- Sürükleme Mantığı (Sadece Desktop için) ---
+        const windowEl = document.getElementById('window');
+        const titleBar = document.getElementById('title-bar');
+        
+        let isDragging = false;
+        let offsetX, offsetY;
+
+        // Mobilde sürüklemeyi kapat (tam ekran olduğu için)
+        if (window.innerWidth > 768) {
+            titleBar.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                const rect = windowEl.getBoundingClientRect();
+                offsetX = e.clientX - rect.left;
+                offsetY = e.clientY - rect.top;
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                // Sınırları kontrol ederek taşı
+                let newX = e.clientX - offsetX;
+                let newY = e.clientY - offsetY;
+                
+                windowEl.style.left = `${newX}px`;
+                windowEl.style.top = `${newY}px`;
+                windowEl.style.position = 'absolute';
+            });
+
+            document.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+        }
+    </script>
+</body>
+</html>
